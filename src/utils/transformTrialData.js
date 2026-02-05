@@ -11,7 +11,9 @@ function checkROIEfficiency(costOriginal, costAI) {
 }
 
 export function transformTrialRow(row, index) {
-  const durationWeeks = Number(row.DurationWeeks || 52);
+  const durationRaw = row.DurationWeeks ?? row.durationWeeks ?? "";
+  const parsedWeeks = Number(durationRaw);
+  const durationWeeks = Number.isFinite(parsedWeeks) && parsedWeeks > 0 ? parsedWeeks : 52;
   const durationDays = durationWeeks * 7;
   const durationAI = durationDays * 0.8;
 
@@ -20,7 +22,7 @@ export function transformTrialRow(row, index) {
   const costSavings = cost - costAI;
   const roiEfficiency = checkROIEfficiency(cost, costAI);
 
-  const id = row.NCTId || row.nct_id || `Trial-${index + 1}`;
+  const id = row.NCTId || row.nct_id || row.NctId || `Trial-${index + 1}`;
 
   return {
     id,
@@ -34,5 +36,12 @@ export function transformTrialRow(row, index) {
 }
 
 export function transformTrialDataset(csvData) {
-  return csvData.map((row, index) => transformTrialRow(row, index));
+  return csvData
+    .filter((row) => {
+      if (!row) return false;
+      const hasId = row.NCTId || row.nct_id || row.NctId;
+      const hasDuration = row.DurationWeeks || row.durationWeeks;
+      return Boolean(hasId || hasDuration);
+    })
+    .map((row, index) => transformTrialRow(row, index));
 }

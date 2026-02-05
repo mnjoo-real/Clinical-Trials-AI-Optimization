@@ -45,6 +45,20 @@ const buildHistogram = (values, bins = 10) => {
   return buckets;
 };
 
+const sanitizeDataset = (data) =>
+  Array.isArray(data)
+    ? data.filter(
+        (trial) =>
+          trial &&
+          Number.isFinite(trial.durationDays) &&
+          Number.isFinite(trial.cost) &&
+          Number.isFinite(trial.durationAI) &&
+          Number.isFinite(trial.costAI) &&
+          Number.isFinite(trial.costSavings) &&
+          typeof trial.roiEfficiency === "string"
+      )
+    : [];
+
 export default function Economics() {
   const { t } = useLanguage();
   const [dataset, setDataset] = useState([]);
@@ -54,8 +68,13 @@ export default function Economics() {
 
     if (stored) {
       try {
-        setDataset(JSON.parse(stored));
-        return;
+        const parsed = JSON.parse(stored);
+        const sanitized = sanitizeDataset(parsed);
+        if (sanitized.length) {
+          setDataset(sanitized);
+          return;
+        }
+        localStorage.removeItem(STORAGE_KEY);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
