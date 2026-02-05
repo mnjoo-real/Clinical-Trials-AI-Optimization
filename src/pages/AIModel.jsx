@@ -17,6 +17,14 @@ const defaultInputs = {
   endpoint: "hba1c"
 };
 
+const defaultLocked = {
+  participants: false,
+  durationMonths: false,
+  controlType: false,
+  blinding: false,
+  endpoint: false
+};
+
 const normalizeInputs = (raw) => {
   const mapped = { ...raw };
   const controlMap = {
@@ -75,7 +83,7 @@ const buildModelInputs = (inputs) => {
   };
 };
 
-const computeModelResults = (inputs) => {
+const computeModelResults = (inputs, locked) => {
   const modelInputs = buildModelInputs(inputs);
   const successProb = predictSuccess(modelInputs);
   const cost = estimateCost(modelInputs.participants, modelInputs.durationMonths);
@@ -85,7 +93,7 @@ const computeModelResults = (inputs) => {
     modelInputs.durationMonths
   );
   const suggestions = generateSuggestions(modelInputs);
-  const optimizedDesign = generateOptimizedDesign(modelInputs);
+  const optimizedDesign = generateOptimizedDesign(modelInputs, locked);
   const optimizedSuccess = predictSuccess(optimizedDesign);
   const optimizedCost = estimateCost(
     optimizedDesign.participants,
@@ -115,7 +123,9 @@ const computeModelResults = (inputs) => {
 export default function AIModel() {
   const { t } = useLanguage();
   const [inputs, setInputs] = useState(defaultInputs);
+  const [locked, setLocked] = useState(defaultLocked);
   const [results, setResults] = useState(null);
+  const [showOptimizedInfo, setShowOptimizedInfo] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -125,6 +135,9 @@ export default function AIModel() {
         if (parsed?.inputs) {
           const normalized = normalizeInputs(parsed.inputs);
           setInputs(normalized);
+          if (parsed?.locked) {
+            setLocked({ ...defaultLocked, ...parsed.locked });
+          }
           if (
             Array.isArray(parsed?.results?.suggestions) &&
             parsed?.results?.original &&
@@ -132,7 +145,7 @@ export default function AIModel() {
           ) {
             setResults(parsed.results);
           } else {
-            setResults(computeModelResults(normalized));
+            setResults(computeModelResults(normalized, parsed?.locked ?? defaultLocked));
           }
         }
       } catch {
@@ -145,10 +158,10 @@ export default function AIModel() {
     if (results) {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ inputs, results })
+        JSON.stringify({ inputs, locked, results })
       );
     }
-  }, [inputs, results]);
+  }, [inputs, locked, results]);
 
   const controlLabel = useMemo(() => {
     if (inputs.control === "active") return t("option_control_active");
@@ -166,15 +179,29 @@ export default function AIModel() {
   );
 
   const handleChange = (field) => (event) => {
-    const value =
-      event.target.type === "range"
-        ? Number(event.target.value)
-        : event.target.value;
-    setInputs((prev) => ({ ...prev, [field]: value }));
+    const { type, value: raw, min, max } = event.target;
+    if (type === "range" || type === "number") {
+      const numeric = Number(raw);
+      if (Number.isNaN(numeric)) return;
+      const minValue = min === "" ? null : Number(min);
+      const maxValue = max === "" ? null : Number(max);
+      const clamped =
+        minValue !== null && maxValue !== null
+          ? Math.min(Math.max(numeric, minValue), maxValue)
+          : numeric;
+      setInputs((prev) => ({ ...prev, [field]: clamped }));
+      return;
+    }
+    setInputs((prev) => ({ ...prev, [field]: raw }));
   };
 
   const handleRun = () => {
-    setResults(computeModelResults(inputs));
+    setResults(computeModelResults(inputs, locked));
+  };
+
+  const handleLockChange = (field) => (event) => {
+    const isLocked = event.target.checked;
+    setLocked((prev) => ({ ...prev, [field]: isLocked }));
   };
 
   return (
@@ -201,10 +228,20 @@ export default function AIModel() {
 
             <div className="mt-8 space-y-6">
               <div>
-                <label className="text-sm font-semibold text-ink">
-                  {t("label_participants")}
-                </label>
-                <div className="mt-3 flex items-center gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-semibold text-ink">
+                    {t("label_participants")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate">
+                    <input
+                      type="checkbox"
+                      checked={locked.participants}
+                      onChange={handleLockChange("participants")}
+                    />
+                    {t("ai_lock")}
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-4">
                   <input
                     type="range"
                     min="50"
@@ -213,17 +250,32 @@ export default function AIModel() {
                     onChange={handleChange("participants")}
                     className="w-full"
                   />
-                  <span className="w-16 text-sm text-slate">
-                    {inputs.participants}
-                  </span>
+                  <input
+                    type="number"
+                    min="50"
+                    max="1000"
+                    value={inputs.participants}
+                    onChange={handleChange("participants")}
+                    className="w-20 rounded-lg border border-slate/20 px-2 py-1 text-sm text-slate"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-ink">
-                  {t("label_duration")}
-                </label>
-                <div className="mt-3 flex items-center gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-semibold text-ink">
+                    {t("label_duration")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate">
+                    <input
+                      type="checkbox"
+                      checked={locked.durationMonths}
+                      onChange={handleLockChange("durationMonths")}
+                    />
+                    {t("ai_lock")}
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-4">
                   <input
                     type="range"
                     min="6"
@@ -232,16 +284,31 @@ export default function AIModel() {
                     onChange={handleChange("duration")}
                     className="w-full"
                   />
-                  <span className="w-16 text-sm text-slate">
-                    {inputs.duration}
-                  </span>
+                  <input
+                    type="number"
+                    min="6"
+                    max="30"
+                    value={inputs.duration}
+                    onChange={handleChange("duration")}
+                    className="w-20 rounded-lg border border-slate/20 px-2 py-1 text-sm text-slate"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-ink">
-                  {t("label_control")}
-                </label>
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-semibold text-ink">
+                    {t("label_control")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate">
+                    <input
+                      type="checkbox"
+                      checked={locked.controlType}
+                      onChange={handleLockChange("controlType")}
+                    />
+                    {t("ai_lock")}
+                  </label>
+                </div>
                 <select
                   value={inputs.control}
                   onChange={handleChange("control")}
@@ -253,9 +320,19 @@ export default function AIModel() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-ink">
-                  {t("label_blinding")}
-                </label>
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-semibold text-ink">
+                    {t("label_blinding")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate">
+                    <input
+                      type="checkbox"
+                      checked={locked.blinding}
+                      onChange={handleLockChange("blinding")}
+                    />
+                    {t("ai_lock")}
+                  </label>
+                </div>
                 <select
                   value={inputs.blinding}
                   onChange={handleChange("blinding")}
@@ -268,9 +345,19 @@ export default function AIModel() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-ink">
-                  {t("label_endpoint")}
-                </label>
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-sm font-semibold text-ink">
+                    {t("label_endpoint")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate">
+                    <input
+                      type="checkbox"
+                      checked={locked.endpoint}
+                      onChange={handleLockChange("endpoint")}
+                    />
+                    {t("ai_lock")}
+                  </label>
+                </div>
                 <select
                   value={inputs.endpoint}
                   onChange={handleChange("endpoint")}
@@ -322,54 +409,6 @@ export default function AIModel() {
               )}
             </div>
 
-            {results?.optimized && (
-              <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 shadow-card">
-                <h2 className="font-display text-2xl text-ink">
-                  AI-Recommended Optimized Trial Design
-                </h2>
-                <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">
-                      Original Design
-                    </p>
-                    <div className="mt-4 space-y-2 text-sm text-slate">
-                      <p>Participants: {results.original.participants}</p>
-                      <p>Duration (months): {results.original.durationMonths}</p>
-                      <p>Control Group: {results.original.controlType}</p>
-                      <p>Blinding: {results.original.blinding}</p>
-                      <p>Primary Endpoint: {results.original.endpoint}</p>
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm text-slate">
-                      <p>Success Probability: {(results.successProb * 100).toFixed(1)}%</p>
-                      <p>Estimated Cost: ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      <p>Efficiency Score: {results.efficiencyScore.toFixed(2)} index</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                      AI-Optimized Design
-                    </p>
-                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
-                      <p>Participants: {results.optimized.design.participants}</p>
-                      <p>Duration (months): {results.optimized.design.durationMonths}</p>
-                      <p>Control Group: {results.optimized.design.controlType}</p>
-                      <p>Blinding: {results.optimized.design.blinding}</p>
-                      <p>Primary Endpoint: {results.optimized.design.endpoint}</p>
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
-                      <p>Success Probability: {(results.optimized.successProb * 100).toFixed(1)}%</p>
-                      <p>Estimated Cost: ${results.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      <p>Efficiency Score: {results.optimized.efficiencyScore.toFixed(2)} index</p>
-                    </div>
-                  </div>
-                </div>
-                <p className="mt-6 text-sm text-slate">
-                  The AI-optimized design is automatically generated by adjusting key trial parameters such as endpoint selection, masking strategy, sample size, and duration. This reflects the research approach where AI explores alternative configurations to achieve higher efficiency while maintaining clinical success probability.
-                </p>
-              </div>
-            )}
-
             <div className="rounded-3xl border border-accent/10 bg-white p-8 shadow-card">
               <h2 className="font-display text-2xl text-ink">
                 {t("adjustments_title")}
@@ -388,6 +427,164 @@ export default function AIModel() {
                 )}
               </div>
             </div>
+
+            {results?.optimized && (
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 shadow-card">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-display text-2xl text-ink">
+                    <button
+                      type="button"
+                      onClick={() => setShowOptimizedInfo(true)}
+                      className="text-left transition-colors hover:text-emerald-700"
+                      aria-label={t("ai_optimized_title")}
+                    >
+                      {t("ai_optimized_title_locked")}
+                    </button>
+                  </h2>
+                </div>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">
+                      {t("ai_original_design")}
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-slate">
+                      <p>
+                        {t("ai_label_participants")} {results.original.participants}
+                        {locked.participants && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_duration")} {results.original.durationMonths}
+                        {locked.durationMonths && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_control")} {results.original.controlType}
+                        {locked.controlType && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_blinding")} {results.original.blinding}
+                        {locked.blinding && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_endpoint")} {results.original.endpoint}
+                        {locked.endpoint && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-slate">
+                      <p>{t("ai_label_success")} {(results.successProb * 100).toFixed(1)}%</p>
+                      <p>
+                        {t("ai_label_cost")} ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </p>
+                      <p>{t("ai_label_efficiency")} {results.efficiencyScore.toFixed(2)} {t("ai_efficiency_unit")}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                      {t("ai_optimized_design")}
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
+                      <p>
+                        {t("ai_label_participants")} {results.optimized.design.participants}
+                        {locked.participants && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_duration")} {results.optimized.design.durationMonths}
+                        {locked.durationMonths && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_control")} {results.optimized.design.controlType}
+                        {locked.controlType && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_blinding")} {results.optimized.design.blinding}
+                        {locked.blinding && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                      <p>
+                        {t("ai_label_endpoint")} {results.optimized.design.endpoint}
+                        {locked.endpoint && (
+                          <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
+                            {t("ai_locked")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
+                      <p>{t("ai_label_success")} {(results.optimized.successProb * 100).toFixed(1)}%</p>
+                      <p>
+                        {t("ai_label_cost")} ${results.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </p>
+                      <p>
+                        {t("ai_label_efficiency")} {results.optimized.efficiencyScore.toFixed(2)} {t("ai_efficiency_unit")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 text-sm text-slate">
+                  {t("ai_constraint_note")}
+                </p>
+              </div>
+            )}
+
+            {showOptimizedInfo && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate/40 px-6">
+                <div className="w-full max-w-xl rounded-3xl border border-slate/10 bg-white p-6 shadow-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-display text-xl text-ink">
+                        {t("ai_optimized_title")}
+                      </h3>
+                      <p className="mt-4 text-sm text-slate">
+                        {t("ai_optimized_note")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowOptimizedInfo(false)}
+                      className="text-lg font-semibold text-slate hover:text-ink"
+                      aria-label={t("ai_modal_close")}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

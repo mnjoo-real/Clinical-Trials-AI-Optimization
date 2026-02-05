@@ -1,28 +1,23 @@
-export function generateOptimizedDesign(inputs) {
+export function generateOptimizedDesign(inputs, locked) {
   const optimized = { ...inputs };
 
-  // Improve endpoint
-  if (optimized.endpoint !== "HbA1c Change") {
+  if (!locked.endpoint && optimized.endpoint !== "HbA1c Change") {
     optimized.endpoint = "HbA1c Change";
   }
 
-  // Improve masking
-  if (optimized.blinding === "Open Label") {
+  if (!locked.blinding && optimized.blinding === "Open Label") {
     optimized.blinding = "Single Blind";
   }
 
-  // Improve comparator
-  if (optimized.controlType === "Active Comparator") {
+  if (!locked.controlType && optimized.controlType === "Active Comparator") {
     optimized.controlType = "Placebo";
   }
 
-  // Increase statistical power if sample too small
-  if (optimized.participants < 150) {
+  if (!locked.participants && optimized.participants < 150) {
     optimized.participants = optimized.participants + 50;
   }
 
-  // Reduce overly long duration
-  if (optimized.durationMonths > 18) {
+  if (!locked.durationMonths && optimized.durationMonths > 18) {
     optimized.durationMonths = optimized.durationMonths - 4;
   }
 

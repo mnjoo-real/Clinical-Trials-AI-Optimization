@@ -251,6 +251,9 @@ export default function Economics() {
                       className={`py-3 font-semibold ${
                         trial.roiEfficiency === "✓" ? "text-emerald-600" : "text-slate/60"
                       }`}
+                      title={
+                        "ROI = (Revenue − Cost) / Cost. Revenue simulated at $10,000, $1,000,000, $100,000,000, $500,000,000, $1,000,000,000, $2,000,000,000. ✓ means AI ROI > Original ROI across all values."
+                      }
                     >
                       {trial.roiEfficiency}
                     </td>
