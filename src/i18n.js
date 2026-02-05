@@ -140,6 +140,8 @@ export const translations = {
     table_cost: "Cost (USD)",
     table_duration_ai: "Duration (AI)",
     table_cost_ai: "Cost (AI)",
+    table_cost_savings: "Cost Savings (USD)",
+    table_roi_efficiency: "ROI Efficiency",
 
     prev: "Prev",
     next: "Next",
@@ -147,7 +149,7 @@ export const translations = {
 
     notes_title: "Methodological Notes",
     notes_text:
-      "The duration distribution is simulated around a 520-day median to mirror typical Phase II timelines reported in the literature and public trial registries. The cost baseline of $23,737 per day reflects aggregate estimates for operational trial expenses. Median comparisons are used to reduce the effect of skewed outliers and better reflect central tendency. AI-driven duration compression translates directly into cost savings, improving ROI and creating downstream flexibility in drug pricing strategies.",
+      "The duration distribution is simulated around a 520-day median to mirror typical Phase II timelines reported in the literature and public trial registries. The cost baseline of $23,737 per day reflects aggregate estimates for operational trial expenses. Median comparisons are used to reduce the effect of skewed outliers and better reflect central tendency. Cost Savings measures the direct reduction in trial execution cost after AI optimization. ROI Efficiency indicates whether AI reduces cost enough to improve ROI structure across a broad revenue range, with revenue simulated from $10,000 to $2B to avoid reliance on a single assumed sales value.",
 
     references_title: "Reference List"
   },
@@ -290,6 +292,8 @@ export const translations = {
     table_cost: "비용 (달러)",
     table_duration_ai: "AI 적용 기간",
     table_cost_ai: "AI 적용 비용",
+    table_cost_savings: "비용 절감 (달러)",
+    table_roi_efficiency: "ROI 효율성",
 
     prev: "이전",
     next: "다음",
@@ -297,7 +301,7 @@ export const translations = {
 
     notes_title: "분석 설명",
     notes_text:
-      "임상 기간 분포는 문헌과 공공 임상 등록 자료에 보고되는 2상 평균 일정을 반영하기 위해 중앙값 520일을 기준으로 시뮬레이션했습니다. 하루 비용 $23,737은 운영비 평균치를 반영한 가정치입니다. 중앙값 비교는 이상치의 영향을 줄여 대표성을 높입니다. AI 기반 기간 단축은 비용 절감으로 직결되며, ROI 개선과 약가 책정의 유연성을 확대합니다.",
+      "임상 기간 분포는 문헌과 공공 임상 등록 자료에 보고되는 2상 평균 일정을 반영하기 위해 중앙값 520일을 기준으로 시뮬레이션했습니다. 하루 비용 $23,737은 운영비 평균치를 반영한 가정치입니다. 중앙값 비교는 이상치의 영향을 줄여 대표성을 높입니다. 비용 절감은 AI 최적화 이후 임상 실행 비용이 얼마나 줄었는지를 의미합니다. ROI 효율성은 비용 감소가 ROI 구조를 개선하는지 확인하며, 매출은 $10,000에서 $2B까지 범위로 시뮬레이션해 특정 판매 가정에 의존하지 않도록 했습니다.",
 
     references_title: "참고문헌"
   }

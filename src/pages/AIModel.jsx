@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import { useLanguage } from "../context/LanguageContext";
+import { predictSuccess } from "../ai/predictSuccess";
+import { estimateCost } from "../ai/economicModel";
+import { calculateEfficiency } from "../ai/efficiencyScore";
+import { generateSuggestions } from "../ai/suggestions";
+import { generateOptimizedDesign } from "../ai/generateOptimizedDesign";
 
 const STORAGE_KEY = "aiModelInputs";
 
@@ -11,22 +16,6 @@ const defaultInputs = {
   blinding: "double",
   endpoint: "hba1c"
 };
-
-const endpointWeights = {
-  hba1c: 0.07,
-  fasting: 0.03,
-  composite: 0.05
-};
-
-const blindingBonusMap = {
-  double: 0.08,
-  single: 0.04,
-  open: 0
-};
-
-const costPerDay = 23737;
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const normalizeInputs = (raw) => {
   const mapped = { ...raw };
@@ -61,45 +50,67 @@ const normalizeInputs = (raw) => {
   };
 };
 
-function computeResults(inputs) {
-  const base = 0.45;
-  const sampleFactor = inputs.participants / 2000;
-  const blindingBonus = blindingBonusMap[inputs.blinding] ?? 0;
-  const endpointWeight = endpointWeights[inputs.endpoint] ?? 0.04;
-  const durationPenalty = inputs.duration * 0.01;
-  const successProb = clamp(
-    base + sampleFactor + blindingBonus + endpointWeight - durationPenalty,
-    0.2,
-    0.92
-  );
-
-  const cost =
-    inputs.participants * costPerDay * ((inputs.duration * 30) / 365);
-
-  const efficiencyScore = clamp(
-    0.72 + sampleFactor * 0.1 + blindingBonus * 0.8 - inputs.duration * 0.01,
-    0.3,
-    0.95
-  );
-
-  const recommendations = [];
-  if (inputs.duration > 18) {
-    recommendations.push("rec_duration");
-  }
-  if (inputs.participants < 150) {
-    recommendations.push("rec_participants");
-  }
-  if (inputs.endpoint === "fasting") {
-    recommendations.push("rec_endpoint");
-  }
+const buildModelInputs = (inputs) => {
+  const blindingMap = {
+    open: "Open Label",
+    single: "Single Blind",
+    double: "Double Blind"
+  };
+  const controlMap = {
+    placebo: "Placebo",
+    active: "Active Comparator"
+  };
+  const endpointMap = {
+    hba1c: "HbA1c Change",
+    fasting: "Fasting Glucose",
+    composite: "Composite"
+  };
 
   return {
+    participants: inputs.participants,
+    durationMonths: inputs.duration,
+    blinding: blindingMap[inputs.blinding] ?? "Double Blind",
+    controlType: controlMap[inputs.control] ?? "Placebo",
+    endpoint: endpointMap[inputs.endpoint] ?? "HbA1c Change"
+  };
+};
+
+const computeModelResults = (inputs) => {
+  const modelInputs = buildModelInputs(inputs);
+  const successProb = predictSuccess(modelInputs);
+  const cost = estimateCost(modelInputs.participants, modelInputs.durationMonths);
+  const efficiencyScore = calculateEfficiency(
+    successProb,
+    cost,
+    modelInputs.durationMonths
+  );
+  const suggestions = generateSuggestions(modelInputs);
+  const optimizedDesign = generateOptimizedDesign(modelInputs);
+  const optimizedSuccess = predictSuccess(optimizedDesign);
+  const optimizedCost = estimateCost(
+    optimizedDesign.participants,
+    optimizedDesign.durationMonths
+  );
+  const optimizedEfficiency = calculateEfficiency(
+    optimizedSuccess,
+    optimizedCost,
+    optimizedDesign.durationMonths
+  );
+
+  return {
+    original: modelInputs,
     successProb,
     cost,
     efficiencyScore,
-    recommendations
+    suggestions,
+    optimized: {
+      design: optimizedDesign,
+      successProb: optimizedSuccess,
+      cost: optimizedCost,
+      efficiencyScore: optimizedEfficiency
+    }
   };
-}
+};
 
 export default function AIModel() {
   const { t } = useLanguage();
@@ -114,7 +125,15 @@ export default function AIModel() {
         if (parsed?.inputs) {
           const normalized = normalizeInputs(parsed.inputs);
           setInputs(normalized);
-          setResults(parsed.results ?? null);
+          if (
+            Array.isArray(parsed?.results?.suggestions) &&
+            parsed?.results?.original &&
+            parsed?.results?.optimized
+          ) {
+            setResults(parsed.results);
+          } else {
+            setResults(computeModelResults(normalized));
+          }
         }
       } catch {
         setInputs(defaultInputs);
@@ -155,8 +174,7 @@ export default function AIModel() {
   };
 
   const handleRun = () => {
-    const computed = computeResults(inputs);
-    setResults(computed);
+    setResults(computeModelResults(inputs));
   };
 
   return (
@@ -286,17 +304,71 @@ export default function AIModel() {
               ) : (
                 <div className="mt-6 grid gap-4">
                   <Card title={t("card_success")}>
-                    {(results.successProb * 100).toFixed(1)}%
+                    <div className="text-3xl font-semibold text-ink">
+                      {(results.successProb * 100).toFixed(1)}%
+                    </div>
                   </Card>
                   <Card title={t("card_cost")}>
-                    ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    <div className="text-xl font-semibold text-ink">
+                      ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
                   </Card>
                   <Card title={t("card_efficiency")}>
-                    {(results.efficiencyScore * 100).toFixed(0)} / 100
+                    <div className="text-xl font-semibold text-ink">
+                      {results.efficiencyScore.toFixed(2)} index
+                    </div>
                   </Card>
                 </div>
               )}
             </div>
+
+            {results?.optimized && (
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 shadow-card">
+                <h2 className="font-display text-2xl text-ink">
+                  AI-Recommended Optimized Trial Design
+                </h2>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">
+                      Original Design
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-slate">
+                      <p>Participants: {results.original.participants}</p>
+                      <p>Duration (months): {results.original.durationMonths}</p>
+                      <p>Control Group: {results.original.controlType}</p>
+                      <p>Blinding: {results.original.blinding}</p>
+                      <p>Primary Endpoint: {results.original.endpoint}</p>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-slate">
+                      <p>Success Probability: {(results.successProb * 100).toFixed(1)}%</p>
+                      <p>Estimated Cost: ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      <p>Efficiency Score: {results.efficiencyScore.toFixed(2)} index</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                      AI-Optimized Design
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
+                      <p>Participants: {results.optimized.design.participants}</p>
+                      <p>Duration (months): {results.optimized.design.durationMonths}</p>
+                      <p>Control Group: {results.optimized.design.controlType}</p>
+                      <p>Blinding: {results.optimized.design.blinding}</p>
+                      <p>Primary Endpoint: {results.optimized.design.endpoint}</p>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-emerald-700">
+                      <p>Success Probability: {(results.optimized.successProb * 100).toFixed(1)}%</p>
+                      <p>Estimated Cost: ${results.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      <p>Efficiency Score: {results.optimized.efficiencyScore.toFixed(2)} index</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 text-sm text-slate">
+                  The AI-optimized design is automatically generated by adjusting key trial parameters such as endpoint selection, masking strategy, sample size, and duration. This reflects the research approach where AI explores alternative configurations to achieve higher efficiency while maintaining clinical success probability.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-3xl border border-accent/10 bg-white p-8 shadow-card">
               <h2 className="font-display text-2xl text-ink">
@@ -305,10 +377,10 @@ export default function AIModel() {
               <div className="mt-4 text-sm text-slate">
                 {!results ? (
                   <p>{t("adjustments_none")}</p>
-                ) : results.recommendations.length ? (
+                ) : results.suggestions.length ? (
                   <ul className="space-y-2">
-                    {results.recommendations.map((rec) => (
-                      <li key={rec}>• {t(rec)}</li>
+                    {results.suggestions.map((rec) => (
+                      <li key={rec}>• {rec}</li>
                     ))}
                   </ul>
                 ) : (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -8,50 +8,12 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import Papa from "papaparse";
 import Card from "../components/Card";
 import { useLanguage } from "../context/LanguageContext";
+import { transformTrialDataset } from "../utils/transformTrialData";
 
 const STORAGE_KEY = "economicDataset";
-const costPerDay = 23737;
-
-const randomNormal = (mean, std) => {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  const value = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-  return value * std + mean;
-};
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const generateDataset = () => {
-  return Array.from({ length: 990 }, (_, index) => {
-    const durationDays = Math.round(clamp(randomNormal(520, 110), 240, 860));
-    const durationAI = Math.round(durationDays * (0.75 + Math.random() * 0.1));
-    const cost = durationDays * costPerDay;
-    const costAI = durationAI * costPerDay;
-    return {
-      id: `T${String(index + 1).padStart(4, "0")}`,
-      durationDays,
-      cost,
-      durationAI,
-      costAI
-    };
-  });
-};
-
-const getDataset = () => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
 
 const median = (values) => {
   if (!values.length) return 0;
@@ -61,6 +23,7 @@ const median = (values) => {
 };
 
 const buildHistogram = (values, bins = 10) => {
+  if (!values.length) return [];
   const min = Math.min(...values);
   const max = Math.max(...values);
   const binSize = (max - min) / bins;
@@ -84,17 +47,33 @@ const buildHistogram = (values, bins = 10) => {
 
 export default function Economics() {
   const { t } = useLanguage();
-  const [dataset] = useState(() => {
-    const existing = getDataset();
-    if (existing) return existing;
-    const created = generateDataset();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-    return created;
-  });
+  const [dataset, setDataset] = useState([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (stored) {
+      try {
+        setDataset(JSON.parse(stored));
+        return;
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
+    fetch("/data/synthetic_ctg_studies_labeled.csv")
+      .then((res) => res.text())
+      .then((text) => {
+        const parsed = Papa.parse(text, { header: true }).data;
+        const transformed = transformTrialDataset(parsed);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(transformed));
+        setDataset(transformed);
+      });
+  }, []);
 
   const [page, setPage] = useState(1);
   const pageSize = 12;
-  const totalPages = Math.ceil(dataset.length / pageSize);
+  const totalPages = Math.max(1, Math.ceil(dataset.length / pageSize));
 
   const durationHistogram = useMemo(
     () => buildHistogram(dataset.map((item) => item.durationDays), 12),
@@ -230,6 +209,8 @@ export default function Economics() {
                   <th className="pb-3">{t("table_cost")}</th>
                   <th className="pb-3">{t("table_duration_ai")}</th>
                   <th className="pb-3">{t("table_cost_ai")}</th>
+                  <th className="pb-3">{t("table_cost_savings")}</th>
+                  <th className="pb-3">{t("table_roi_efficiency")}</th>
                 </tr>
               </thead>
               <tbody className="text-slate">
@@ -243,6 +224,16 @@ export default function Economics() {
                     <td className="py-3">{trial.durationAI}</td>
                     <td className="py-3">
                       ${trial.costAI.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-3">
+                      ${trial.costSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td
+                      className={`py-3 font-semibold ${
+                        trial.roiEfficiency === "✓" ? "text-emerald-600" : "text-slate/60"
+                      }`}
+                    >
+                      {trial.roiEfficiency}
                     </td>
                   </tr>
                 ))}
