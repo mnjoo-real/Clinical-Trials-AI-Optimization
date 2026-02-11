@@ -97,21 +97,9 @@ export default function ClinicalChat() {
   };
 
   return (
-    <section className="rounded-3xl border border-slate/10 bg-white p-8 shadow-card">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate">
-          {t("chat_kicker")}
-        </p>
-        <h2 className="font-display text-2xl text-ink">
-          {t("chat_title")}
-        </h2>
-        <p className="text-sm text-slate">
-          {t("chat_disclaimer")}
-        </p>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-slate/10 bg-mist/60 p-4">
-        <div className="flex max-h-72 flex-col gap-3 overflow-y-auto">
+    <section className="rounded-3xl border border-slate/10 bg-white p-6 shadow-card">
+      <div className="rounded-2xl border border-slate/10 bg-mist/60 p-4">
+        <div className="flex h-[420px] flex-col gap-3 overflow-y-auto md:h-[520px]">
           {messages.length === 0 ? (
             <p className="text-sm text-slate">{t("chat_empty_prompt")}</p>
           ) : (
@@ -143,7 +131,7 @@ export default function ClinicalChat() {
 
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-3">
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-3">
         <input
           type="text"
           value={input}
