@@ -1,11 +1,16 @@
 import OpenAI from "openai";
+import { kv } from "@vercel/kv";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
 
-const ipHits = new Map();
+const MAX_MESSAGES = 8;
+const MAX_INPUT_CHARS = 2000;
+const MAX_OUTPUT_TOKENS = 500;
+
+const inMemoryHits = new Map();
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -14,20 +19,33 @@ function getClientIp(req) {
   return realIp || "unknown";
 }
 
-function isRateLimited(ip) {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const hits = ipHits.get(ip) || [];
-  const recent = hits.filter((t) => t > windowStart);
+async function isRateLimited(ip) {
+  const kvReady = Boolean(
+    process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+  );
 
-  if (recent.length >= RATE_LIMIT_MAX) {
-    ipHits.set(ip, recent);
-    return true;
+  if (!kvReady) {
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    const hits = inMemoryHits.get(ip) || [];
+    const recent = hits.filter((t) => t > windowStart);
+
+    if (recent.length >= RATE_LIMIT_MAX) {
+      inMemoryHits.set(ip, recent);
+      return true;
+    }
+
+    recent.push(now);
+    inMemoryHits.set(ip, recent);
+    return false;
   }
 
-  recent.push(now);
-  ipHits.set(ip, recent);
-  return false;
+  const key = `rate:${ip}`;
+  const count = await kv.incr(key);
+  if (count === 1) {
+    await kv.expire(key, Math.ceil(RATE_LIMIT_WINDOW_MS / 1000));
+  }
+  return count > RATE_LIMIT_MAX;
 }
 
 function validateMessages(messages) {
@@ -40,6 +58,17 @@ function validateMessages(messages) {
     }
   }
   return true;
+}
+
+function sanitizeMessages(messages) {
+  const trimmed = messages
+    .filter((msg) => msg.role !== "system")
+    .map((msg) => ({
+      role: msg.role,
+      content: msg.content.slice(0, MAX_INPUT_CHARS)
+    }));
+
+  return trimmed.slice(-MAX_MESSAGES);
 }
 
 export default async function handler(req, res) {
@@ -55,7 +84,7 @@ export default async function handler(req, res) {
     }
 
     const ip = getClientIp(req);
-    if (isRateLimited(ip)) {
+    if (await isRateLimited(ip)) {
       res.status(429).json({ error: "Rate limit exceeded." });
       return;
     }
@@ -67,6 +96,7 @@ export default async function handler(req, res) {
     }
 
     const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+    const streamEnabled = String(req.query?.stream || "") === "1";
 
     const systemMessage = {
       role: "system",
@@ -74,10 +104,40 @@ export default async function handler(req, res) {
         "You are a clinical trial optimization research assistant. Provide concise, research-oriented responses. Avoid medical advice and avoid making clinical decisions."
     };
 
+    const sanitized = sanitizeMessages(messages);
+    const input = [systemMessage, ...sanitized];
+
+    if (streamEnabled) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no"
+      });
+
+      const stream = await client.responses.create({
+        model,
+        input,
+        max_output_tokens: MAX_OUTPUT_TOKENS,
+        stream: true
+      });
+
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta") {
+          const payload = JSON.stringify({ type: "delta", text: event.delta });
+          res.write(`data: ${payload}\n\n`);
+        }
+      }
+
+      res.write("data: [DONE]\n\n");
+      res.end();
+      return;
+    }
+
     const response = await client.responses.create({
       model,
-      input: [systemMessage, ...messages],
-      max_output_tokens: 800
+      input,
+      max_output_tokens: MAX_OUTPUT_TOKENS
     });
 
     res.status(200).json({ text: response.output_text || "" });

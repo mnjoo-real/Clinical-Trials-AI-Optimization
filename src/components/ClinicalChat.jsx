@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
+
+const MAX_MESSAGES = 8;
 
 export default function ClinicalChat() {
   const { t } = useLanguage();
@@ -8,22 +10,28 @@ export default function ClinicalChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const canSend = useMemo(
+    () => input.trim().length > 0 && !isLoading,
+    [input, isLoading]
+  );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const content = input.trim();
     if (!content || isLoading) return;
 
     const nextMessages = [...messages, { role: "user", content }];
+    const trimmedMessages = nextMessages.slice(-MAX_MESSAGES);
     setMessages(nextMessages);
     setInput("");
     setError("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/chat?stream=1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages })
+        body: JSON.stringify({ messages: trimmedMessages })
       });
 
       if (!response.ok) {
@@ -31,11 +39,56 @@ export default function ClinicalChat() {
         throw new Error(data.error || "Request failed.");
       }
 
-      const data = await response.json();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Streaming not supported.");
+      }
+
+      let assistantText = "";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.text || "" }
+        { role: "assistant", content: "" }
       ]);
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let done = false;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            const data = line.replace(/^data:\s*/, "");
+            if (data === "[DONE]") {
+              done = true;
+              break;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed?.type === "delta" && parsed.text) {
+                assistantText += parsed.text;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: "assistant",
+                    content: assistantText
+                  };
+                  return updated;
+                });
+              }
+            } catch {
+              // Ignore malformed chunks.
+            }
+          }
+        }
+      }
     } catch (err) {
       setError(err?.message || "Unexpected error.");
     } finally {
@@ -100,7 +153,7 @@ export default function ClinicalChat() {
         />
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={!canSend}
           className="rounded-xl bg-accent px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white disabled:opacity-60"
         >
           {t("chat_send")}
