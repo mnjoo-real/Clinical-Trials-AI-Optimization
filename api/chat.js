@@ -8,7 +8,8 @@ const RATE_LIMIT_MAX = 5;
 
 const MAX_MESSAGES = 8;
 const MAX_INPUT_CHARS = 2000;
-const MAX_OUTPUT_TOKENS = 500;
+const MAX_OUTPUT_TOKENS = 300;
+const SUMMARY_MAX_TOKENS = 120;
 
 const inMemoryHits = new Map();
 
@@ -61,14 +62,33 @@ function validateMessages(messages) {
 }
 
 function sanitizeMessages(messages) {
+  const systemSummary = messages.find(
+    (msg) => msg.role === "system" && msg.content.startsWith("Summary memo:")
+  );
+
   const trimmed = messages
     .filter((msg) => msg.role !== "system")
     .map((msg) => ({
       role: msg.role,
       content: msg.content.slice(0, MAX_INPUT_CHARS)
-    }));
+    }))
+    .slice(-MAX_MESSAGES);
 
-  return trimmed.slice(-MAX_MESSAGES);
+  if (systemSummary) {
+    return [
+      {
+        role: "system",
+        content: systemSummary.content.slice(0, MAX_INPUT_CHARS)
+      },
+      ...trimmed
+    ];
+  }
+
+  return trimmed;
+}
+
+function stripSystem(messages) {
+  return messages.filter((msg) => msg.role !== "system");
 }
 
 export default async function handler(req, res) {
@@ -97,12 +117,39 @@ export default async function handler(req, res) {
 
     const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
     const streamEnabled = String(req.query?.stream || "") === "1";
+    const summaryMode = String(req.query?.summary || "") === "1";
 
     const systemMessage = {
       role: "system",
       content:
-        "You are a clinical trial optimization research assistant. Provide concise, research-oriented responses. Avoid medical advice and avoid making clinical decisions."
+        "You are a clinical trial optimization research assistant. Provide concise, research-oriented responses in 3–5 sentences. Avoid medical advice and avoid making clinical decisions."
     };
+
+    if (summaryMode) {
+      const summarySystem = {
+        role: "system",
+        content:
+          "Summarize the conversation into a single short memo (4–6 sentences). Focus on goals, constraints, and decisions. Use neutral research language. Do not include medical advice."
+      };
+      const summaryInput = [
+        summarySystem,
+        ...stripSystem(messages).map((msg) => ({
+          role: msg.role,
+          content: msg.content.slice(0, MAX_INPUT_CHARS)
+        }))
+      ];
+
+      const summaryResponse = await client.responses.create({
+        model,
+        input: summaryInput,
+        max_output_tokens: SUMMARY_MAX_TOKENS
+      });
+
+      res.status(200).json({
+        summary: `Summary memo: ${summaryResponse.output_text || ""}`.trim()
+      });
+      return;
+    }
 
     const sanitized = sanitizeMessages(messages);
     const input = [systemMessage, ...sanitized];

@@ -184,7 +184,8 @@ export const translations = {
     chat_send: "Send",
     chat_user_label: "You",
     chat_assistant_label: "Assistant",
-    chat_loading: "Generating response..."
+    chat_loading: "Generating response...",
+    chat_summary_label: "Summary memo"
   },
   ko: {
     nav_brand_title: "AI 임상시험 최적화",
@@ -369,6 +370,7 @@ export const translations = {
     chat_send: "전송",
     chat_user_label: "사용자",
     chat_assistant_label: "연구 보조",
-    chat_loading: "응답을 생성 중입니다..."
+    chat_loading: "응답을 생성 중입니다...",
+    chat_summary_label: "요약 메모"
   }
 };

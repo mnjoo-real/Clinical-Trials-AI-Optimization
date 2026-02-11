@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 
 const MAX_MESSAGES = 8;
+const KEEP_LAST = 4;
 
 export default function ClinicalChat() {
   const { t } = useLanguage();
@@ -20,7 +21,29 @@ export default function ClinicalChat() {
     const content = input.trim();
     if (!content || isLoading) return;
 
-    const nextMessages = [...messages, { role: "user", content }];
+    let baseMessages = messages;
+    if (messages.length >= MAX_MESSAGES) {
+      try {
+        const summaryRes = await fetch("/api/chat?summary=1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages })
+        });
+
+        if (summaryRes.ok) {
+          const data = await summaryRes.json();
+          const summaryText = data.summary || "";
+          const recent = messages.slice(-KEEP_LAST);
+          baseMessages = summaryText
+            ? [{ role: "system", content: summaryText }, ...recent]
+            : recent;
+        }
+      } catch {
+        baseMessages = messages.slice(-KEEP_LAST);
+      }
+    }
+
+    const nextMessages = [...baseMessages, { role: "user", content }];
     const trimmedMessages = nextMessages.slice(-MAX_MESSAGES);
     setMessages(nextMessages);
     setInput("");
@@ -109,13 +132,17 @@ export default function ClinicalChat() {
                 className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
                     ? "self-end bg-white text-ink"
-                    : "bg-white/70 text-slate"
+                    : msg.role === "system"
+                      ? "border border-slate/10 bg-white/60 text-slate"
+                      : "bg-white/70 text-slate"
                 }`}
               >
                 <span className="block text-xs uppercase tracking-[0.2em] text-slate/70">
                   {msg.role === "user"
                     ? t("chat_user_label")
-                    : t("chat_assistant_label")}
+                    : msg.role === "system"
+                      ? t("chat_summary_label")
+                      : t("chat_assistant_label")}
                 </span>
                 <p className="mt-1 whitespace-pre-line">{msg.content}</p>
               </div>
