@@ -121,11 +121,6 @@ export default function ClinicalChat() {
               </div>
             ))
           )}
-          {isLoading && (
-            <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate">
-              {t("chat_loading")}
-            </div>
-          )}
         </div>
       </div>
 
