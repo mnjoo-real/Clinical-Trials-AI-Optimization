@@ -16,7 +16,7 @@ export const translations = {
     hero_note:
       "Evidence-informed modeling to support early clinical development decisions.",
     summary_kicker: "Study Summary",
-    summary_item_1: "Dataset: Global Phase II trials (201532024)",
+    summary_item_1: "Dataset: Global Phase II trials (2015-2024)",
     summary_item_2: "Focus: Efficacy signals in Type 2 Diabetes",
     summary_item_3: "Outputs: Success probability and economic efficiency",
     summary_note:
@@ -37,7 +37,7 @@ export const translations = {
 
     objectives_subtitle: "Research Objectives",
     objectives_title: "Objectives for AI-Assisted Trial Optimization",
-    objective_1: "Develop AI models using Phase II data from 201532024",
+    objective_1: "Develop AI models using Phase II data from 2015-2024",
     objective_2: "Estimate trial success probability",
     objective_3: "Compare AI-assisted and conventional designs",
     objective_4: "Assess economic impact",
@@ -87,7 +87,7 @@ export const translations = {
     ai_intro:
       "Input Phase II design parameters to generate AI-based projections of success probability, trial cost, and efficiency.",
     input_params_title: "Input Parameters",
-    form_summary: "{participants} participants 3 {duration} months 3 {control}",
+    form_summary: "{participants} participants • {duration} months • {control}",
 
     label_participants: "Number of participants",
     label_duration: "Trial duration (months)",
@@ -155,7 +155,7 @@ export const translations = {
 
     dataset_title: "Trial dataset",
     dataset_subtitle:
-      "Showing {page} of {total} pages. Median duration: {median}d 3 AI median duration: {medianAI}d.",
+      "Showing {page} of {total} pages. Median duration: {median}d • AI median duration: {medianAI}d.",
 
     table_id: "Trial ID",
     table_duration: "Duration (days)",
@@ -203,7 +203,7 @@ export const translations = {
     hero_note:
       "초기 임상 개발 의사결정을 지원하기 위한 근거 기반 모델링을 제시합니다.",
     summary_kicker: "연구 요약",
-    summary_item_1: "데이터셋: 201532024 글로벌 2상 임상시험",
+    summary_item_1: "데이터셋: 2015-2024 글로벌 2상 임상시험",
     summary_item_2: "대상: 제2형 당뇨병 효능 신호",
     summary_item_3: "산출물: 성공 확률 및 경제적 효율",
     summary_note:
@@ -217,21 +217,21 @@ export const translations = {
       "인슐린 저항성과 고혈당이 특징인 만성 대사 질환으로, 전 세계 보건 체계와 비용에 큰 영향을 미칩니다.",
     background_card2_title: "임상시험 설계",
     background_card2_text:
-      "2상 임상은 용량2반응, 효능 및 안전성 신호를 평가하여 3상 수행 가능성과 규제 전략을 결정합니다.",
+      "2상 임상은 용량-반응, 효능 및 안전성 신호를 평가하여 3상 수행 가능성과 규제 전략을 결정합니다.",
     background_card3_title: "전통적 설계의 한계",
     background_card3_text:
       "높은 비용과 긴 수행 기간, 제한된 적응형 설계로 인해 불확실성과 후기 단계 실패 위험이 증가합니다.",
 
     objectives_subtitle: "연구 목표",
     objectives_title: "AI 기반 임상 최적화 연구 목표",
-    objective_1: "201532024년 2상 데이터를 활용한 AI 모델 개발",
+    objective_1: "2015-2024년 2상 데이터를 활용한 AI 모델 개발",
     objective_2: "임상 성공 확률 추정",
     objective_3: "AI 설계와 기존 설계의 비교 평가",
     objective_4: "경제적 영향 평가",
-    objective_5: "비용2가격 전이 효과의 정성화",
+    objective_5: "비용-가격 전이 효과의 정성화",
 
     model_subtitle: "AI 모델 개요",
-    model_title: "입력2출력 파이프라인",
+    model_title: "입력-출력 파이프라인",
     model_inputs_label: "입력값",
     model_ai_label: "AI 모델",
     model_outputs_label: "출력값",
@@ -274,7 +274,7 @@ export const translations = {
     ai_intro:
       "2상 설계 입력값을 기반으로 AI가 성공 확률, 비용, 효율성 지수를 추정합니다.",
     input_params_title: "입력 파라미터",
-    form_summary: "참여자 {participants}명 3 {duration}개월 3 {control}",
+    form_summary: "참여자 {participants}명 • {duration}개월 • {control}",
 
     label_participants: "참여자 수",
     label_duration: "시험 기간 (개월)",
@@ -341,7 +341,7 @@ export const translations = {
 
     dataset_title: "임상시험 데이터셋",
     dataset_subtitle:
-      "{page} / {total} 페이지 표시 중. 기간 중앙값: {median}일 3 AI 중앙값: {medianAI}일.",
+      "{page} / {total} 페이지 표시 중. 기간 중앙값: {median}일 • AI 중앙값: {medianAI}일.",
 
     table_id: "임상 ID",
     table_duration: "기간 (일)",
@@ -357,7 +357,7 @@ export const translations = {
 
     notes_title: "방법론적 주석",
     notes_text:
-      "임상 기간 분포는 문헌 및 공공 임상 등록 자료에 보고되는 2상 일정과 정합성을 확보하기 위해 중앙값 520일을 기준으로 시뮬레이션했습니다. 하루 비용 $23,737은 운영비 평균치를 반영한 가정치입니다. 중앙값 비교는 이상치의 영향을 줄여 대표성을 확보합니다. 비용 절감은 AI 최적화 이후 임상 실행 비용이 얼마나 감소하는지를 의미합니다. ROI 효율성은 비용 감소가 ROI 구조를 개선하는지 평가하며, 매출은 $10,0003$2B 범위로 시뮬레이션하여 단일 판매 가정에 의존하지 않도록 했습니다.",
+      "임상 기간 분포는 문헌 및 공공 임상 등록 자료에 보고되는 2상 일정과 정합성을 확보하기 위해 중앙값 520일을 기준으로 시뮬레이션했습니다. 하루 비용 $23,737은 운영비 평균치를 반영한 가정치입니다. 중앙값 비교는 이상치의 영향을 줄여 대표성을 확보합니다. 비용 절감은 AI 최적화 이후 임상 실행 비용이 얼마나 감소하는지를 의미합니다. ROI 효율성은 비용 감소가 ROI 구조를 개선하는지 평가하며, 매출은 $10,000-$2B 범위로 시뮬레이션하여 단일 판매 가정에 의존하지 않도록 했습니다.",
 
     references_title: "참고문헌",
 
