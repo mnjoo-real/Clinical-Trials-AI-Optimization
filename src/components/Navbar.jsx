@@ -26,6 +26,9 @@ export default function Navbar() {
           <NavLink to="/ai-model" className={getLinkClass}>
             {t("nav_ai")}
           </NavLink>
+          <NavLink to="/research-chat" className={getLinkClass}>
+            {t("nav_chat")}
+          </NavLink>
           <NavLink to="/economics" className={getLinkClass}>
             {t("nav_econ")}
           </NavLink>
