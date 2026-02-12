@@ -104,7 +104,6 @@ const computeModelResults = (inputs, locked) => {
     optimizedCost,
     optimizedDesign.durationMonths
   );
-
   return {
     original: modelInputs,
     successProb,
@@ -125,6 +124,10 @@ export default function AIModel() {
   const [inputs, setInputs] = useState(defaultInputs);
   const [locked, setLocked] = useState(defaultLocked);
   const [results, setResults] = useState(null);
+  const [runResults, setRunResults] = useState(null);
+  const [baselineResults, setBaselineResults] = useState(null);
+  const [hasRun, setHasRun] = useState(false);
+  const [hasUserRun, setHasUserRun] = useState(false);
   const [showOptimizedInfo, setShowOptimizedInfo] = useState(false);
 
   useEffect(() => {
@@ -138,14 +141,17 @@ export default function AIModel() {
           if (parsed?.locked) {
             setLocked({ ...defaultLocked, ...parsed.locked });
           }
-          if (
+          const hasValidResults =
             Array.isArray(parsed?.results?.suggestions) &&
             parsed?.results?.original &&
-            parsed?.results?.optimized
-          ) {
+            parsed?.results?.optimized;
+
+          if (hasValidResults) {
             setResults(parsed.results);
+            setHasRun(true);
           } else {
             setResults(computeModelResults(normalized, parsed?.locked ?? defaultLocked));
+            setHasRun(true);
           }
         }
       } catch {
@@ -153,6 +159,11 @@ export default function AIModel() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!hasRun) return;
+    setResults(computeModelResults(inputs, locked));
+  }, [inputs, locked, hasRun]);
 
   useEffect(() => {
     if (results) {
@@ -196,7 +207,18 @@ export default function AIModel() {
   };
 
   const handleRun = () => {
-    setResults(computeModelResults(inputs, locked));
+    setHasRun(true);
+    setHasUserRun(true);
+    const computed = computeModelResults(inputs, locked);
+    const base = baselineResults ?? computed;
+    if (!baselineResults) {
+      setBaselineResults(computed);
+    }
+    const finalResults = {
+      ...computed
+    };
+    setResults(finalResults);
+    setRunResults(finalResults);
   };
 
   const handleLockChange = (field) => (event) => {
@@ -206,7 +228,7 @@ export default function AIModel() {
 
   return (
     <main className="bg-mist py-12">
-      <div className="mx-auto flex max-w-6xl flex-col gap-10 px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate">
             {t("ai_kicker")}
@@ -219,7 +241,7 @@ export default function AIModel() {
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
+        <div className="grid gap-8 lg:grid-cols-[1fr_1.25fr]">
           <div className="rounded-3xl border border-accent/10 bg-white p-8 shadow-card">
             <h2 className="font-display text-2xl text-ink">
               {t("input_params_title")}
@@ -389,22 +411,69 @@ export default function AIModel() {
                   {t("results_prompt")}
                 </p>
               ) : (
-                <div className="mt-6 grid gap-4">
-                  <Card title={t("card_success")}>
-                    <div className="text-3xl font-semibold text-ink">
-                      {(results.successProb * 100).toFixed(1)}%
+                <div className="mt-6 space-y-6">
+                  <div className="rounded-2xl border border-slate/10 bg-mist/60 p-4">
+                    <div className="grid grid-cols-3 gap-3 text-xs uppercase tracking-[0.2em] text-slate">
+                      <span />
+                      <span>{t("ai_original_design")}</span>
+                      <span>AI 결과</span>
                     </div>
-                  </Card>
-                  <Card title={t("card_cost")}>
-                    <div className="text-xl font-semibold text-ink">
-                      ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-ink">
+                      <span className="text-slate">{t("card_success")}</span>
+                      <span>{((baselineResults ?? results).successProb * 100).toFixed(1)}%</span>
+                      <span>
+                        {(results.optimized.successProb * 100).toFixed(1)}%
+                        <span
+                          className={`ml-2 text-xs font-semibold ${
+                            results.optimized.successProb - (baselineResults ?? results).successProb > 0
+                              ? "text-emerald-700"
+                              : results.optimized.successProb - (baselineResults ?? results).successProb < 0
+                                ? "text-rose-600"
+                                : "text-slate"
+                          }`}
+                        >
+                          {results.optimized.successProb - (baselineResults ?? results).successProb < 0 ? "-" : "+"}
+                          {Math.abs((results.optimized.successProb - (baselineResults ?? results).successProb) * 100).toFixed(1)}%
+                        </span>
+                      </span>
                     </div>
-                  </Card>
-                  <Card title={t("card_efficiency")}>
-                    <div className="text-xl font-semibold text-ink">
-                      {results.efficiencyScore.toFixed(2)} index
+                    <div className="mt-2 grid grid-cols-3 gap-3 text-sm text-ink">
+                      <span className="text-slate">{t("card_cost")}</span>
+                      <span>${(baselineResults ?? results).cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span>
+                        ${results.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <span
+                          className={`ml-2 text-xs font-semibold ${
+                            results.optimized.cost - (baselineResults ?? results).cost < 0
+                              ? "text-emerald-700"
+                              : "text-rose-600"
+                          }`}
+                        >
+                          {(results.optimized.cost - (baselineResults ?? results).cost) < 0 ? "-" : "+"}
+                          ${Math.abs(results.optimized.cost - (baselineResults ?? results).cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
+                      </span>
                     </div>
-                  </Card>
+                    <div className="mt-2 grid grid-cols-3 gap-3 text-sm text-ink">
+                      <span className="text-slate">{t("card_efficiency")}</span>
+                      <span>{(baselineResults ?? results).efficiencyScore.toFixed(3)}</span>
+                      <span>
+                        {results.optimized.efficiencyScore.toFixed(3)}
+                        <span
+                          className={`ml-2 text-xs font-semibold ${
+                            results.optimized.efficiencyScore - (baselineResults ?? results).efficiencyScore > 0
+                              ? "text-emerald-700"
+                              : results.optimized.efficiencyScore - (baselineResults ?? results).efficiencyScore < 0
+                                ? "text-rose-600"
+                                : "text-slate"
+                          }`}
+                        >
+                          {results.optimized.efficiencyScore - (baselineResults ?? results).efficiencyScore < 0 ? "-" : "+"}
+                          {Math.abs(results.optimized.efficiencyScore - (baselineResults ?? results).efficiencyScore).toFixed(3)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -428,7 +497,7 @@ export default function AIModel() {
               </div>
             </div>
 
-            {results?.optimized && (
+            {hasUserRun && runResults?.optimized && (
               <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 shadow-card">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="font-display text-2xl text-ink">
@@ -445,11 +514,16 @@ export default function AIModel() {
                 <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">
-                      {t("ai_original_design")}
+                      <span className="group relative inline-flex items-center">
+                        {t("ai_original_design")}
+                        <span className="pointer-events-none absolute left-0 top-full z-10 mt-2 w-max rounded-md border border-slate/10 bg-white px-3 py-2 text-[10px] font-medium normal-case tracking-normal text-slate opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                          {t("ai_original_tooltip")}
+                        </span>
+                      </span>
                     </p>
                     <div className="mt-4 space-y-2 text-sm text-slate">
                       <p>
-                        {t("ai_label_participants")} {results.original.participants}
+                        {t("ai_label_participants")} {(baselineResults ?? runResults).original.participants}
                         {locked.participants && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -457,7 +531,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_duration")} {results.original.durationMonths}
+                        {t("ai_label_duration")} {(baselineResults ?? runResults).original.durationMonths}
                         {locked.durationMonths && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -465,7 +539,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_control")} {results.original.controlType}
+                        {t("ai_label_control")} {(baselineResults ?? runResults).original.controlType}
                         {locked.controlType && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -473,7 +547,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_blinding")} {results.original.blinding}
+                        {t("ai_label_blinding")} {(baselineResults ?? runResults).original.blinding}
                         {locked.blinding && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -481,7 +555,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_endpoint")} {results.original.endpoint}
+                        {t("ai_label_endpoint")} {(baselineResults ?? runResults).original.endpoint}
                         {locked.endpoint && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -490,11 +564,11 @@ export default function AIModel() {
                       </p>
                     </div>
                     <div className="mt-4 space-y-2 text-sm text-slate">
-                      <p>{t("ai_label_success")} {(results.successProb * 100).toFixed(1)}%</p>
+                      <p>{t("ai_label_success")} {((baselineResults ?? runResults).successProb * 100).toFixed(1)}%</p>
                       <p>
-                        {t("ai_label_cost")} ${results.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {t("ai_label_cost")} ${(baselineResults ?? runResults).cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
-                      <p>{t("ai_label_efficiency")} {results.efficiencyScore.toFixed(2)} {t("ai_efficiency_unit")}</p>
+                      <p>{t("ai_label_efficiency")} {(baselineResults ?? runResults).efficiencyScore.toFixed(3)}</p>
                     </div>
                   </div>
 
@@ -504,7 +578,7 @@ export default function AIModel() {
                     </p>
                     <div className="mt-4 space-y-2 text-sm text-emerald-700">
                       <p>
-                        {t("ai_label_participants")} {results.optimized.design.participants}
+                        {t("ai_label_participants")} {runResults.optimized.design.participants}
                         {locked.participants && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -512,7 +586,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_duration")} {results.optimized.design.durationMonths}
+                        {t("ai_label_duration")} {runResults.optimized.design.durationMonths}
                         {locked.durationMonths && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -520,7 +594,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_control")} {results.optimized.design.controlType}
+                        {t("ai_label_control")} {runResults.optimized.design.controlType}
                         {locked.controlType && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -528,7 +602,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_blinding")} {results.optimized.design.blinding}
+                        {t("ai_label_blinding")} {runResults.optimized.design.blinding}
                         {locked.blinding && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -536,7 +610,7 @@ export default function AIModel() {
                         )}
                       </p>
                       <p>
-                        {t("ai_label_endpoint")} {results.optimized.design.endpoint}
+                        {t("ai_label_endpoint")} {runResults.optimized.design.endpoint}
                         {locked.endpoint && (
                           <span className="ml-2 text-xs uppercase tracking-[0.2em] text-amber-700">
                             {t("ai_locked")}
@@ -545,12 +619,12 @@ export default function AIModel() {
                       </p>
                     </div>
                     <div className="mt-4 space-y-2 text-sm text-emerald-700">
-                      <p>{t("ai_label_success")} {(results.optimized.successProb * 100).toFixed(1)}%</p>
+                      <p>{t("ai_label_success")} {(runResults.optimized.successProb * 100).toFixed(1)}%</p>
                       <p>
-                        {t("ai_label_cost")} ${results.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {t("ai_label_cost")} ${runResults.optimized.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
                       <p>
-                        {t("ai_label_efficiency")} {results.optimized.efficiencyScore.toFixed(2)} {t("ai_efficiency_unit")}
+                        {t("ai_label_efficiency")} {runResults.optimized.efficiencyScore.toFixed(3)}
                       </p>
                     </div>
                   </div>

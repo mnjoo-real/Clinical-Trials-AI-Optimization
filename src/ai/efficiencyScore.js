@@ -1,3 +1,8 @@
 export function calculateEfficiency(successProb, cost, durationMonths) {
-  return (successProb * 100) / (cost / 1_000_000 + durationMonths);
+  const successWeight = 120;
+  const costScale = 750_000;
+  const durationWeight = 1.25;
+
+  const denominator = cost / costScale + durationMonths * durationWeight;
+  return (successProb * successWeight) / denominator;
 }
